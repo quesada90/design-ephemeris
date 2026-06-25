@@ -1,133 +1,63 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
+import {
+  designEphemerides,
+  getTodayString,
+  getEphemerisForDate,
+  detectOS as detectOSUtil,
+  getExitShortcut as getExitShortcutUtil,
+  createDynamicFrame,
+} from "@/lib/ephemeris-utils"
 
-interface Ephemeris {
-  date: string
-  year: number
-  event: string
-  description: string
-  category: "birth" | "death" | "event" | "founding"
+// Detectar sistema operativo
+const detectOS = (): "mac" | "windows" | "linux" | "unknown" => {
+  if (typeof window === "undefined") return "unknown"
+  return detectOSUtil(window.navigator.platform)
 }
 
-const designEphemerides: Ephemeris[] = [
-  {
-    date: "01-01",
-    year: 1919,
-    event: "Nace el Bauhaus",
-    description:
-      "Walter Gropius funda la escuela Bauhaus en Weimar, revolucionando el diseño moderno al fusionar arte, artesanía e industria. Su filosofía 'la forma sigue a la función' transformó arquitectura, diseño gráfico y productos, estableciendo principios que aún definen el diseño contemporáneo.",
-    category: "founding",
-  },
-  {
-    date: "01-02",
-    year: 1920,
-    event: "Nace Isaac Asimov",
-    description:
-      "Escritor de ciencia ficción cuyas visiones futuristas sobre robots e inteligencia artificial influyeron profundamente en el diseño de interfaces, UX/UI y estética tecnológica. Sus conceptos sobre interacción humano-máquina siguen inspirando diseñadores digitales hoy.",
-    category: "birth",
-  },
-  {
-    date: "01-03",
-    year: 1929,
-    event: "Nace Sergio Aragonés",
-    description:
-      "Ilustrador y diseñador gráfico mexicano-español, maestro del humor visual en MAD Magazine. Pionero en técnicas de ilustración marginal y narrativa visual que revolucionaron el diseño editorial y la comunicación gráfica humorística en medios impresos.",
-    category: "birth",
-  },
-  {
-    date: "01-04",
-    year: 1958,
-    event: "Nace Matt Frewer",
-    description:
-      "Actor que interpretó a Max Headroom, el primer presentador virtual generado por computadora. Este personaje se convirtió en icono del diseño digital de los 80, influyendo en la estética cyberpunk, motion graphics y el desarrollo de avatares digitales.",
-    category: "birth",
-  },
-  {
-    date: "01-05",
-    year: 1931,
-    event: "Nace Robert Duvall",
-    description:
-      "Actor cuyo trabajo meticuloso en desarrollo de personajes influyó en el diseño de vestuario, caracterización y dirección de arte cinematográfica. Su enfoque detallista inspiró a diseñadores de producción a crear mundos visuales más auténticos y creíbles.",
-    category: "birth",
-  },
-]
+// Obtener la combinación de teclas correcta según el OS
+const getExitShortcut = (): string => {
+  if (typeof window === "undefined") return "CTRL+C"
+  return getExitShortcutUtil(window.navigator.platform)
+}
+
+// Obtener la combinación de teclas para cambiar tema según el OS
+const getThemeShortcut = (): string => {
+  return "SHIFT+T"
+}
+
+// Función para cerrar la pestaña
+const closeTab = (): void => {
+  if (typeof window !== "undefined") {
+    window.close()
+    // Fallback si window.close() no funciona (p.ej. pestañas no abiertas por JS)
+    if (!window.closed) {
+      window.location.href = "about:blank"
+    }
+  }
+}
 
 export function DesignEphemeris() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null)
   const [displayText, setDisplayText] = useState("")
   const [isTyping, setIsTyping] = useState(true)
   const [showCursor, setShowCursor] = useState(true)
+  const [columns, setColumns] = useState<number | null>(null)
+  const [exitShortcut, setExitShortcut] = useState<string>("CTRL+C")
+  const [currentTheme, setCurrentTheme] = useState<"default" | "blue">("default")
+  const [themeShortcut, setThemeShortcut] = useState<string>("SHIFT+T")
+
+  const preRef = useRef<HTMLPreElement | null>(null)
+  const measureRef = useRef<HTMLSpanElement | null>(null)
+  const shiftDownRef = useRef(false)
+  const ctrlDownRef = useRef(false)
+  const metaDownRef = useRef(false)
 
   // Get today's ephemeris
   const today = new Date()
-  const todayString = `${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
-  const todayEphemeris = designEphemerides.find((e) => e.date === todayString) || designEphemerides[0]
-
-  const createDynamicFrame = () => {
-    const frameWidth = 80 // Ancho fijo total de la línea, incluidas esquinas
-    const title = " EFEMÉRIDE DEL DÍA "
-    const topInnerWidth = frameWidth - 2 // sin contar esquinas
-    const trailing = Math.max(0, topInnerWidth - title.length)
-    const topBorder = `╭${title}${"─".repeat(trailing)}╮`
-    const bottomBorder = `╰${"─".repeat(topInnerWidth)}╯`
-
-    // Ajuste de líneas a un ancho máximo (sin bordes laterales visibles)
-    const indent = "\t" // tabulador para jerarquía respecto al título
-    const visibleWidth = (text: string) => text.replace(/\t/g, "        ").length // cuenta tabs como 8 espacios
-    const wrapLines = (content: string, prefix = ""): string[] => {
-      // Estimamos el ancho visible máximo restando la longitud del prefijo
-      const maxWidth = Math.max(0, frameWidth - visibleWidth(prefix))
-      if (content.length <= maxWidth) return [prefix + content]
-      const words = content.split(" ")
-      const lines: string[] = []
-      let currentLine = ""
-      for (const word of words) {
-        const proposed = currentLine.length + (currentLine ? 1 : 0) + word.length
-        if (proposed <= maxWidth) {
-          currentLine += (currentLine ? " " : "") + word
-        } else {
-          if (currentLine) lines.push(prefix + currentLine)
-          if (word.length > maxWidth) {
-            let start = 0
-            while (start < word.length) {
-              lines.push(prefix + word.slice(start, start + maxWidth))
-              start += maxWidth
-            }
-            currentLine = ""
-          } else {
-            currentLine = word
-          }
-        }
-      }
-      if (currentLine) lines.push(prefix + currentLine)
-      return lines
-    }
-
-    const dateFormatted = today.toLocaleDateString("es-ES", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-
-    const contentLines: string[] = []
-    contentLines.push("")
-    contentLines.push(...wrapLines(`Fecha: ${dateFormatted}`, indent))
-    contentLines.push("")
-    contentLines.push(...wrapLines(`Año: ${todayEphemeris.year}`, indent))
-    contentLines.push(...wrapLines(`Evento: ${todayEphemeris.event}`, indent))
-    contentLines.push("")
-    contentLines.push(...wrapLines("Descripción:", indent))
-    contentLines.push(...wrapLines(`   ${todayEphemeris.description}`, indent))
-    contentLines.push("")
-    contentLines.push(
-      ...wrapLines(`Categoría: [${todayEphemeris.category.toUpperCase()}]`, indent)
-    )
-    contentLines.push("")
-
-    return [topBorder, ...contentLines, bottomBorder].join("\n")
-  }
+  const todayString = getTodayString(today)
+  const todayEphemeris = getEphemerisForDate(todayString)
 
   const fullText = `┌─[design@terminal]─[~/ephemeris]
 └─$ design_ephemeris --date=${todayString}
@@ -135,7 +65,7 @@ export function DesignEphemeris() {
 ● Conectando a la base de datos de historia del diseño...
 [████████████████████████████████] 100%
 
-${createDynamicFrame()}
+${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
 
 ┌─[design@terminal]─[~/ephemeris]
 └─$ _`
@@ -146,6 +76,35 @@ ${createDynamicFrame()}
       setCurrentTime(new Date())
     }, 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  // Medir número de columnas visibles según el ancho del contenedor y el ancho de un carácter
+  useEffect(() => {
+    const compute = () => {
+      const preEl = preRef.current
+      const mEl = measureRef.current
+      if (!preEl || !mEl) return
+      const width = preEl.getBoundingClientRect().width
+      // probar con un bloque de caracteres para mayor precisión
+      const original = mEl.textContent
+      mEl.textContent = "─".repeat(50)
+      let blockWidth = mEl.getBoundingClientRect().width
+      let charWidth = blockWidth / 50
+      mEl.textContent = original || "─"
+      if (charWidth > 0 && isFinite(charWidth)) {
+        const cols = Math.max(4, Math.floor(width / charWidth))
+        setColumns(cols)
+      }
+    }
+
+    compute()
+    const onResize = () => compute()
+    window.addEventListener("resize", onResize)
+    // esperar a fuentes
+    if ((document as any).fonts?.ready) {
+      ;(document as any).fonts.ready.then(() => compute()).catch(() => {})
+    }
+    return () => window.removeEventListener("resize", onResize)
   }, [])
 
   useEffect(() => {
@@ -172,6 +131,73 @@ ${createDynamicFrame()}
     return () => clearInterval(cursorInterval)
   }, [])
 
+  // Detectar OS y configurar atajo de teclado
+  useEffect(() => {
+    setExitShortcut(getExitShortcut())
+    setThemeShortcut(getThemeShortcut())
+  }, [])
+
+  // Función para cambiar tema
+  const toggleTheme = (): void => {
+    setCurrentTheme((prev) => (prev === "default" ? "blue" : "default"))
+  }
+
+  // Aplicar tema cuando cambie el estado
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const html = document.documentElement
+      if (currentTheme === "blue") {
+        html.classList.add("blue-theme")
+      } else {
+        html.classList.remove("blue-theme")
+      }
+    }
+  }, [currentTheme])
+
+  // Manejar atajo de teclado para cerrar pestaña
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isMac = detectOS() === "mac"
+      const isCtrlPressed = isMac ? event.metaKey : event.ctrlKey
+      // actualizar refs de modificadores
+      if (event.key === "Shift") shiftDownRef.current = true
+      if (event.key === "Control") ctrlDownRef.current = true
+      if (event.key === "Meta") metaDownRef.current = true
+
+      console.log(
+        "Key pressed:", event.key,
+        "Ctrl:", isCtrlPressed,
+        "Meta:", event.metaKey,
+        "Shift:", event.shiftKey,
+        "code:", (event as any).code
+      )
+      
+      if (isCtrlPressed && event.key.toLowerCase() === "c") {
+        event.preventDefault()
+        event.stopPropagation()
+        closeTab()
+      } else if ((event as any).code === "KeyT" && (event.shiftKey || shiftDownRef.current)) {
+        event.preventDefault()
+        event.stopPropagation()
+        toggleTheme()
+      }
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === "Shift") shiftDownRef.current = false
+      if (event.key === "Control") ctrlDownRef.current = false
+      if (event.key === "Meta") metaDownRef.current = false
+    }
+
+    // Usar capture phase para interceptar antes que el navegador
+    document.addEventListener("keydown", handleKeyDown, true)
+    document.addEventListener("keyup", handleKeyUp, true)
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true)
+      document.removeEventListener("keyup", handleKeyUp, true)
+    }
+  }, [])
+
   return (
     <div className="min-h-screen p-6 flex flex-col relative overflow-hidden font-mono bg-[#0E0E0E]">
       {/* Terminal header */}
@@ -191,12 +217,14 @@ ${createDynamicFrame()}
 
       {/* Terminal content */}
       <div className="flex-1 relative z-10">
-        <div className="bg-[#0E0E0E] p-6">
+        <div className="bg-[#0E0E0E] p-6 w-full md:w-[80vw] mx-auto">
           <pre
-            className="whitespace-pre-wrap text-sm leading-relaxed tracking-wide text-green-400 drop-shadow-lg"
+            className="whitespace-pre text-sm leading-relaxed tracking-normal text-green-400 drop-shadow-lg"
             style={{ filter: "blur(0.3px)" }}
+            ref={preRef}
           >
             {displayText}
+            <span ref={measureRef} className="invisible absolute">─</span>
             {(isTyping || showCursor) && (
               <span className="bg-green-400 text-black animate-pulse shadow-lg shadow-green-400/50">█</span>
             )}
@@ -209,10 +237,10 @@ ${createDynamicFrame()}
         <div className="flex justify-between items-center text-xs text-green-400/70">
           <div className="flex space-x-4">
             <span>
-              <span className="bg-green-400 text-black px-1">CTRL+C</span> Salir
+              <span className="bg-green-400 text-black px-1">{exitShortcut}</span> Salir
             </span>
             <span>
-              <span className="bg-green-400 text-black px-1">CTRL+T</span> Temas
+              <span className="bg-green-400 text-black px-1">{themeShortcut}</span> Temas
             </span>
             <span>
               <span className="bg-green-400 text-black px-1">CTRL+X</span> Tweet
