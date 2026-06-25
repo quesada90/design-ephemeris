@@ -47,12 +47,16 @@ export function DesignEphemeris() {
   const [themeShortcut, setThemeShortcut] = useState<string>("SHIFT+T")
   const [tweetShortcut, setTweetShortcut] = useState<string>("CTRL+X")
   const [locale, setLocale] = useState<Locale>("en")
+  const [localeReady, setLocaleReady] = useState(false)
+  const [dataReady, setDataReady] = useState(false)
 
   const preRef = useRef<HTMLPreElement | null>(null)
   const measureRef = useRef<HTMLSpanElement | null>(null)
   const shiftDownRef = useRef(false)
   const ctrlDownRef = useRef(false)
   const metaDownRef = useRef(false)
+  const dataReadyFiredRef = useRef(false)
+  const fullTextRef = useRef("")
   // Always holds the latest ephemeris+ui so the keyboard handler never reads a stale closure
   const tweetDataRef = useRef<{ ephemeris: Ephemeris | null; ui: typeof strings.en }>({
     ephemeris: null,
@@ -70,9 +74,6 @@ export function DesignEphemeris() {
     () => getEphemerisForDate(todayString, ephemeridesEn)
   )
 
-  // Keep ref current on every render so keyboard handler never reads a stale closure
-  tweetDataRef.current = { ephemeris: todayEphemeris, ui }
-
   const fullText = `┌─[design@terminal]─[~/ephemeris]
 └─$ design_ephemeris --date=${todayString}
 
@@ -83,6 +84,10 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
 
 ┌─[design@terminal]─[~/ephemeris]
 └─$ _`
+
+  // Keep refs current on every render so closures never read stale values
+  tweetDataRef.current = { ephemeris: todayEphemeris, ui }
+  fullTextRef.current = fullText
 
   // Clock
   useEffect(() => {
@@ -95,8 +100,17 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
   useEffect(() => {
     const loc = detectLocale()
     setLocale(loc)
+    setLocaleReady(true)
     document.documentElement.lang = loc
   }, [])
+
+  // Flip dataReady once both locale and columns are known — gates the typewriter to play once
+  useEffect(() => {
+    if (!dataReadyFiredRef.current && localeReady && columns !== null) {
+      dataReadyFiredRef.current = true
+      setDataReady(true)
+    }
+  }, [localeReady, columns])
 
   // Re-fetch from Supabase whenever locale is resolved
   useEffect(() => {
@@ -132,12 +146,27 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
     return () => window.removeEventListener("resize", compute)
   }, [])
 
-  // Typewriter animation
+  // Typewriter animation — fires exactly once when locale + columns are ready
   useEffect(() => {
+    if (!dataReady) return
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+    if (prefersReducedMotion) {
+      setDisplayText(fullTextRef.current)
+      setIsTyping(false)
+      return
+    }
+
     let index = 0
+    setDisplayText("")
+    setIsTyping(true)
+
     const typeText = () => {
-      if (index < fullText.length) {
-        setDisplayText(fullText.slice(0, index + 1))
+      if (index < fullTextRef.current.length) {
+        setDisplayText(fullTextRef.current.slice(0, index + 1))
         index++
         setTimeout(typeText, 20 + Math.random() * 40)
       } else {
@@ -146,7 +175,7 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
     }
     const startDelay = setTimeout(typeText, 600)
     return () => clearTimeout(startDelay)
-  }, [fullText])
+  }, [dataReady])
 
   // Cursor blink
   useEffect(() => {
