@@ -90,10 +90,10 @@ interface GeneratedEntry {
   description_es: string
 }
 
-async function generateEntry(date: string): Promise<GeneratedEntry | null> {
+async function generateEntry(date: string, attempt = 1): Promise<GeneratedEntry | null> {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
+      model: "gemini-2.5-flash",
       config: {
         responseMimeType: "application/json",
         temperature: 0.3,
@@ -117,8 +117,16 @@ async function generateEntry(date: string): Promise<GeneratedEntry | null> {
     }
 
     return parsed
-  } catch (err) {
-    console.error(`  ✗ Gemini error for ${date}:`, err)
+  } catch (err: any) {
+    const status = err?.status ?? 0
+    // Retry on 503 (overloaded) or 429 (rate limit) up to 4 times
+    if ((status === 503 || status === 429) && attempt <= 4) {
+      const wait = attempt * 8000
+      process.stdout.write(`  ⟳ Gemini ${status}, retry ${attempt}/4 in ${wait / 1000}s... `)
+      await sleep(wait)
+      return generateEntry(date, attempt + 1)
+    }
+    console.error(`  ✗ Gemini error for ${date}:`, err?.message ?? err)
     return null
   }
 }
