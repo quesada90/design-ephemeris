@@ -53,6 +53,11 @@ export function DesignEphemeris() {
   const shiftDownRef = useRef(false)
   const ctrlDownRef = useRef(false)
   const metaDownRef = useRef(false)
+  // Always holds the latest ephemeris+ui so the keyboard handler never reads a stale closure
+  const tweetDataRef = useRef<{ ephemeris: Ephemeris | null; ui: typeof strings.en }>({
+    ephemeris: null,
+    ui: strings.en,
+  })
 
   const ui = strings[locale]
   const dateLocale = locale === "es" ? "es-ES" : "en-US"
@@ -64,6 +69,9 @@ export function DesignEphemeris() {
   const [todayEphemeris, setTodayEphemeris] = useState<Ephemeris>(
     () => getEphemerisForDate(todayString, ephemeridesEn)
   )
+
+  // Keep ref current on every render so keyboard handler never reads a stale closure
+  tweetDataRef.current = { ephemeris: todayEphemeris, ui }
 
   const fullText = `┌─[design@terminal]─[~/ephemeris]
 └─$ design_ephemeris --date=${todayString}
@@ -160,16 +168,20 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
     )
   }
 
-  // Tweet today's ephemeris
+  // Tweet today's ephemeris — reads from ref so keyboard handler always gets current data
   const tweetEphemeris = (): void => {
+    const { ephemeris, ui: currentUi } = tweetDataRef.current
+    if (!ephemeris) return
     const siteUrl = typeof window !== "undefined" ? window.location.origin : ""
-    const text = buildTweetText(todayEphemeris, siteUrl, ui)
+    const text = buildTweetText(ephemeris, siteUrl, currentUi)
     window.open(
       `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
       "_blank",
       "noopener,noreferrer"
     )
   }
+  const tweetEphemerisRef = useRef(tweetEphemeris)
+  tweetEphemerisRef.current = tweetEphemeris
 
   // Apply theme class to <html>
   useEffect(() => {
@@ -199,7 +211,7 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
       } else if (isCtrlPressed && event.key.toLowerCase() === "x") {
         event.preventDefault()
         event.stopPropagation()
-        tweetEphemeris()
+        tweetEphemerisRef.current()
       }
     }
 
