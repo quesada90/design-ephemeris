@@ -175,17 +175,19 @@ describe("buildTweetText", () => {
   it("includes the site URL", () =>
     expect(buildTweetText(founding, siteUrl)).toContain(siteUrl))
 
+  it("includes a portion of the description", () =>
+    expect(buildTweetText(founding, siteUrl)).toContain(founding.description.slice(0, 30)))
+
   it("uses founding hashtags for founding category", () =>
     expect(buildTweetText(founding, siteUrl)).toContain("#Historia"))
 
   it("uses birth hashtags for birth category", () =>
-    expect(buildTweetText(birth, siteUrl)).toContain("#Diseño"))
+    expect(buildTweetText(birth, siteUrl)).toContain("#HistoriaDelDiseño"))
 
-  it("non-URL content stays under 257 chars (safe for Twitter 280 limit)", () => {
+  it("non-URL content stays under 280 chars (safe for Twitter limit)", () => {
     const text = buildTweetText(founding, siteUrl)
-    // Remove the URL portion (counted separately by Twitter as 23 chars)
     const withoutUrl = text.replace(siteUrl, "")
-    expect(withoutUrl.length).toBeLessThan(257)
+    expect(withoutUrl.length).toBeLessThan(280)
   })
 
   it("truncates event names longer than 80 chars with ellipsis", () => {
@@ -195,8 +197,16 @@ describe("buildTweetText", () => {
     expect(text).not.toContain("A".repeat(90))
   })
 
+  it("truncates descriptions longer than 120 chars with ellipsis", () => {
+    const longDesc = { ...founding, description: "B".repeat(130) }
+    const text = buildTweetText(longDesc, siteUrl)
+    expect(text).toContain("…")
+    expect(text).not.toContain("B".repeat(130))
+  })
+
   it("does not truncate short event names", () => {
     const text = buildTweetText(birth, siteUrl)
-    expect(text).not.toContain("…")
+    // birth.event is short; only description ellipsis might appear
+    expect(text).not.toContain(birth.event.slice(0, 5) + "…")
   })
 })

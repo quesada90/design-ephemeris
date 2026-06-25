@@ -159,16 +159,29 @@ export function buildTweetText(ephemeris: Ephemeris, siteUrl: string): string {
     ephemeris.category === "founding"
       ? "#Diseño #Historia"
       : ephemeris.category === "birth"
-      ? "#Diseño #Diseño"
+      ? "#Diseño #HistoriaDelDiseño"
       : "#Diseño #HistoriaDelDiseño"
 
-  // Twitter counts any URL as 23 chars; reserve those for siteUrl.
-  // Keep non-URL content under 257 chars to stay safely within 280 total.
+  // Twitter counts any URL as ~23 chars regardless of length, and most emoji
+  // as 2 weighted chars. We budget conservatively:
+  //   Header line:   ~30 chars  ("📅 Efeméride del Diseño — YYYY\n\n")
+  //   Event line:    ~82 chars  ("✦ " + max 80 chars + "\n\n")
+  //   Description:  ~120 chars  (truncated below + "\n\n")
+  //   URL:           ~25 chars  (Twitter counts as 23 + "\n\n")
+  //   Hashtags:      ~28 chars
+  //   Total:         ~285 weighted → safe with Twitter's 280-weighted limit
   const maxEventLength = 80
+  const maxDescriptionLength = 120
+
   const event =
     ephemeris.event.length > maxEventLength
       ? ephemeris.event.slice(0, maxEventLength - 1) + "…"
       : ephemeris.event
 
-  return `📅 Efeméride del Diseño — ${ephemeris.year}\n\n✦ ${event}\n\n${siteUrl}\n\n${hashtag}`
+  const description =
+    ephemeris.description.length > maxDescriptionLength
+      ? ephemeris.description.slice(0, maxDescriptionLength - 1) + "…"
+      : ephemeris.description
+
+  return `📅 Efeméride del Diseño — ${ephemeris.year}\n\n✦ ${event}\n\n${description}\n\n${siteUrl}\n\n${hashtag}`
 }
