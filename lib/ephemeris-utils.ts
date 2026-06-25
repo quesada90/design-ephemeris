@@ -153,3 +153,22 @@ export function createDynamicFrame(
   const titleLine = `${indent}EFEMERIDE DEL DIA`
   return [topBorder, titleLine, "", ...contentLines, "", bottomBorder].join("\n")
 }
+
+export function buildTweetText(ephemeris: Ephemeris, siteUrl: string): string {
+  const hashtag =
+    ephemeris.category === "founding"
+      ? "#DiseñoGráfico #Historia"
+      : ephemeris.category === "birth"
+      ? "#DiseñoGráfico #Diseño"
+      : "#DiseñoGráfico #HistoriaDelDiseño"
+
+  // Twitter counts any URL as 23 chars; reserve those for siteUrl.
+  // Keep non-URL content under 257 chars to stay safely within 280 total.
+  const maxEventLength = 80
+  const event =
+    ephemeris.event.length > maxEventLength
+      ? ephemeris.event.slice(0, maxEventLength - 1) + "…"
+      : ephemeris.event
+
+  return `📅 Efeméride del Diseño — ${ephemeris.year}\n\n✦ ${event}\n\n${siteUrl}\n\n${hashtag}`
+}

@@ -8,6 +8,7 @@ import {
   wrapLines,
   wrapDescriptionToFullWidth,
   createDynamicFrame,
+  buildTweetText,
   designEphemerides,
   TAB_WIDTH,
 } from "./ephemeris-utils"
@@ -155,5 +156,47 @@ describe("createDynamicFrame", () => {
 
   it("works with very narrow columns (4)", () => {
     expect(() => createDynamicFrame(4, entry, date)).not.toThrow()
+  })
+})
+
+// ─── buildTweetText ───────────────────────────────────────────────────────────
+
+describe("buildTweetText", () => {
+  const founding = designEphemerides.find((e) => e.category === "founding")!
+  const birth = designEphemerides.find((e) => e.category === "birth")!
+  const siteUrl = "https://example.com"
+
+  it("includes the event name", () =>
+    expect(buildTweetText(founding, siteUrl)).toContain(founding.event))
+
+  it("includes the year", () =>
+    expect(buildTweetText(founding, siteUrl)).toContain(String(founding.year)))
+
+  it("includes the site URL", () =>
+    expect(buildTweetText(founding, siteUrl)).toContain(siteUrl))
+
+  it("uses founding hashtags for founding category", () =>
+    expect(buildTweetText(founding, siteUrl)).toContain("#Historia"))
+
+  it("uses birth hashtags for birth category", () =>
+    expect(buildTweetText(birth, siteUrl)).toContain("#Diseño"))
+
+  it("non-URL content stays under 257 chars (safe for Twitter 280 limit)", () => {
+    const text = buildTweetText(founding, siteUrl)
+    // Remove the URL portion (counted separately by Twitter as 23 chars)
+    const withoutUrl = text.replace(siteUrl, "")
+    expect(withoutUrl.length).toBeLessThan(257)
+  })
+
+  it("truncates event names longer than 80 chars with ellipsis", () => {
+    const longEvent = { ...founding, event: "A".repeat(90) }
+    const text = buildTweetText(longEvent, siteUrl)
+    expect(text).toContain("…")
+    expect(text).not.toContain("A".repeat(90))
+  })
+
+  it("does not truncate short event names", () => {
+    const text = buildTweetText(birth, siteUrl)
+    expect(text).not.toContain("…")
   })
 })

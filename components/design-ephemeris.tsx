@@ -8,6 +8,7 @@ import {
   detectOS as detectOSUtil,
   getExitShortcut as getExitShortcutUtil,
   createDynamicFrame,
+  buildTweetText,
 } from "@/lib/ephemeris-utils"
 
 // Detectar sistema operativo
@@ -47,6 +48,7 @@ export function DesignEphemeris() {
   const [exitShortcut, setExitShortcut] = useState<string>("CTRL+C")
   const [currentTheme, setCurrentTheme] = useState<"default" | "blue">("default")
   const [themeShortcut, setThemeShortcut] = useState<string>("SHIFT+T")
+  const [tweetShortcut, setTweetShortcut] = useState<string>("CTRL+X")
 
   const preRef = useRef<HTMLPreElement | null>(null)
   const measureRef = useRef<HTMLSpanElement | null>(null)
@@ -135,11 +137,23 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
   useEffect(() => {
     setExitShortcut(getExitShortcut())
     setThemeShortcut(getThemeShortcut())
+    setTweetShortcut(detectOS() === "mac" ? "CMD+X" : "CTRL+X")
   }, [])
 
   // Función para cambiar tema
   const toggleTheme = (): void => {
     setCurrentTheme((prev) => (prev === "default" ? "blue" : "default"))
+  }
+
+  // Abrir X/Twitter con la efeméride del día pre-compuesta
+  const tweetEphemeris = (): void => {
+    const siteUrl = typeof window !== "undefined" ? window.location.origin : ""
+    const text = buildTweetText(todayEphemeris, siteUrl)
+    window.open(
+      `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
+      "_blank",
+      "noopener,noreferrer"
+    )
   }
 
   // Aplicar tema cuando cambie el estado
@@ -180,6 +194,10 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
         event.preventDefault()
         event.stopPropagation()
         toggleTheme()
+      } else if (isCtrlPressed && event.key.toLowerCase() === "x") {
+        event.preventDefault()
+        event.stopPropagation()
+        tweetEphemeris()
       }
     }
 
@@ -242,9 +260,12 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
             <span>
               <span className="bg-green-400 text-black px-1">{themeShortcut}</span> Temas
             </span>
-            <span>
-              <span className="bg-green-400 text-black px-1">CTRL+X</span> Tweet
-            </span>
+            <button
+              onClick={tweetEphemeris}
+              className="hover:text-green-400 transition-colors cursor-pointer bg-transparent border-0 p-0 font-mono text-xs text-green-400/70 hover:text-green-400"
+            >
+              <span className="bg-green-400 text-black px-1">{tweetShortcut}</span> Tweet
+            </button>
           </div>
           <span>Historia del Diseño © 2024</span>
         </div>
