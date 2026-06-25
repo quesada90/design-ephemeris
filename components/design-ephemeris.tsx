@@ -2,37 +2,34 @@
 
 import { useState, useEffect, useRef } from "react"
 import {
-  designEphemerides,
   getTodayString,
   getEphemerisForDate,
   detectOS as detectOSUtil,
   getExitShortcut as getExitShortcutUtil,
   createDynamicFrame,
   buildTweetText,
+  ephemeridesEn,
+  ephemeridesEs,
+  type Ephemeris,
 } from "@/lib/ephemeris-utils"
+import { detectLocale, strings, type Locale } from "@/lib/i18n"
 
-// Detectar sistema operativo
+// Detect OS
 const detectOS = (): "mac" | "windows" | "linux" | "unknown" => {
   if (typeof window === "undefined") return "unknown"
   return detectOSUtil(window.navigator.platform)
 }
 
-// Obtener la combinación de teclas correcta según el OS
 const getExitShortcut = (): string => {
   if (typeof window === "undefined") return "CTRL+C"
   return getExitShortcutUtil(window.navigator.platform)
 }
 
-// Obtener la combinación de teclas para cambiar tema según el OS
-const getThemeShortcut = (): string => {
-  return "SHIFT+T"
-}
+const getThemeShortcut = (): string => "SHIFT+T"
 
-// Función para cerrar la pestaña
 const closeTab = (): void => {
   if (typeof window !== "undefined") {
     window.close()
-    // Fallback si window.close() no funciona (p.ej. pestañas no abiertas por JS)
     if (!window.closed) {
       window.location.href = "about:blank"
     }
@@ -50,6 +47,8 @@ export function DesignEphemeris() {
   const [currentTheme, setCurrentTheme] = useState<Theme>("default")
   const [themeShortcut, setThemeShortcut] = useState<string>("SHIFT+T")
   const [tweetShortcut, setTweetShortcut] = useState<string>("CTRL+X")
+  const [locale, setLocale] = useState<Locale>("en")
+  const [db, setDb] = useState<Ephemeris[]>(ephemeridesEn)
 
   const preRef = useRef<HTMLPreElement | null>(null)
   const measureRef = useRef<HTMLSpanElement | null>(null)
@@ -57,42 +56,51 @@ export function DesignEphemeris() {
   const ctrlDownRef = useRef(false)
   const metaDownRef = useRef(false)
 
-  // Get today's ephemeris
+  const ui = strings[locale]
+  const dateLocale = locale === "es" ? "es-ES" : "en-US"
+
+  // Today's ephemeris from the locale-appropriate dataset
   const today = new Date()
   const todayString = getTodayString(today)
-  const todayEphemeris = getEphemerisForDate(todayString)
+  const todayEphemeris = getEphemerisForDate(todayString, db)
 
   const fullText = `┌─[design@terminal]─[~/ephemeris]
 └─$ design_ephemeris --date=${todayString}
 
-● Conectando a la base de datos de historia del diseño...
+${ui.connecting}
 [████████████████████████████████] 100%
 
-${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
+${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
 
 ┌─[design@terminal]─[~/ephemeris]
 └─$ _`
 
+  // Clock
   useEffect(() => {
     setCurrentTime(new Date())
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
     return () => clearInterval(timer)
   }, [])
 
-  // Medir número de columnas visibles según el ancho del contenedor y el ancho de un carácter
+  // Detect browser language on mount
+  useEffect(() => {
+    const loc = detectLocale()
+    setLocale(loc)
+    setDb(loc === "es" ? ephemeridesEs : ephemeridesEn)
+    document.documentElement.lang = loc
+  }, [])
+
+  // Measure column width for responsive terminal frame
   useEffect(() => {
     const compute = () => {
       const preEl = preRef.current
       const mEl = measureRef.current
       if (!preEl || !mEl) return
       const width = preEl.getBoundingClientRect().width
-      // probar con un bloque de caracteres para mayor precisión
       const original = mEl.textContent
       mEl.textContent = "─".repeat(50)
-      let blockWidth = mEl.getBoundingClientRect().width
-      let charWidth = blockWidth / 50
+      const blockWidth = mEl.getBoundingClientRect().width
+      const charWidth = blockWidth / 50
       mEl.textContent = original || "─"
       if (charWidth > 0 && isFinite(charWidth)) {
         const cols = Math.max(4, Math.floor(width / charWidth))
@@ -101,57 +109,53 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
     }
 
     compute()
-    const onResize = () => compute()
-    window.addEventListener("resize", onResize)
-    // esperar a fuentes
+    window.addEventListener("resize", compute)
     if ((document as any).fonts?.ready) {
       ;(document as any).fonts.ready.then(() => compute()).catch(() => {})
     }
-    return () => window.removeEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", compute)
   }, [])
 
+  // Typewriter animation
   useEffect(() => {
     let index = 0
     const typeText = () => {
       if (index < fullText.length) {
         setDisplayText(fullText.slice(0, index + 1))
         index++
-        const speed = 20 + Math.random() * 40
-        setTimeout(typeText, speed)
+        setTimeout(typeText, 20 + Math.random() * 40)
       } else {
         setIsTyping(false)
       }
     }
-
     const startDelay = setTimeout(typeText, 600)
     return () => clearTimeout(startDelay)
   }, [fullText])
 
+  // Cursor blink
   useEffect(() => {
-    const cursorInterval = setInterval(() => {
-      setShowCursor((prev) => !prev)
-    }, 500)
+    const cursorInterval = setInterval(() => setShowCursor((prev) => !prev), 500)
     return () => clearInterval(cursorInterval)
   }, [])
 
-  // Detectar OS y configurar atajo de teclado
+  // OS-aware keyboard shortcuts
   useEffect(() => {
     setExitShortcut(getExitShortcut())
     setThemeShortcut(getThemeShortcut())
     setTweetShortcut(detectOS() === "mac" ? "CMD+X" : "CTRL+X")
   }, [])
 
-  // Función para cambiar tema — ciclo: green → white → blue → green
+  // Theme cycle: green → white → blue → green
   const toggleTheme = (): void => {
     setCurrentTheme((prev) =>
       prev === "default" ? "white" : prev === "white" ? "blue" : "default"
     )
   }
 
-  // Abrir X/Twitter con la efeméride del día pre-compuesta
+  // Tweet today's ephemeris
   const tweetEphemeris = (): void => {
     const siteUrl = typeof window !== "undefined" ? window.location.origin : ""
-    const text = buildTweetText(todayEphemeris, siteUrl)
+    const text = buildTweetText(todayEphemeris, siteUrl, ui)
     window.open(
       `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
       "_blank",
@@ -159,7 +163,7 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
     )
   }
 
-  // Aplicar tema cuando cambie el estado
+  // Apply theme class to <html>
   useEffect(() => {
     const html = document.documentElement
     html.classList.remove("white-theme", "blue-theme")
@@ -167,24 +171,15 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
     if (currentTheme === "blue") html.classList.add("blue-theme")
   }, [currentTheme])
 
-  // Manejar atajo de teclado para cerrar pestaña
+  // Keyboard shortcut handler
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = detectOS() === "mac"
       const isCtrlPressed = isMac ? event.metaKey : event.ctrlKey
-      // actualizar refs de modificadores
       if (event.key === "Shift") shiftDownRef.current = true
       if (event.key === "Control") ctrlDownRef.current = true
       if (event.key === "Meta") metaDownRef.current = true
 
-      console.log(
-        "Key pressed:", event.key,
-        "Ctrl:", isCtrlPressed,
-        "Meta:", event.metaKey,
-        "Shift:", event.shiftKey,
-        "code:", (event as any).code
-      )
-      
       if (isCtrlPressed && event.key.toLowerCase() === "c") {
         event.preventDefault()
         event.stopPropagation()
@@ -206,7 +201,6 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
       if (event.key === "Meta") metaDownRef.current = false
     }
 
-    // Usar capture phase para interceptar antes que el navegador
     document.addEventListener("keydown", handleKeyDown, true)
     document.addEventListener("keyup", handleKeyUp, true)
     return () => {
@@ -228,7 +222,7 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
           <div className="text-[var(--theme-accent)] text-sm">design@terminal:~/ephemeris</div>
         </div>
         <div className="text-[var(--theme-accent)]/80 text-sm" suppressHydrationWarning>
-          {currentTime ? currentTime.toLocaleTimeString("es-ES") : ""}
+          {currentTime ? currentTime.toLocaleTimeString(dateLocale) : ""}
         </div>
       </div>
 
@@ -254,22 +248,22 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
         <div className="flex justify-between items-center text-xs text-[var(--theme-accent)]/70">
           <div className="flex space-x-4">
             <span>
-              <span className="bg-[var(--theme-accent)] text-black px-1">{exitShortcut}</span> Salir
+              <span className="bg-[var(--theme-accent)] text-black px-1">{exitShortcut}</span> {ui.shortcutExit}
             </span>
             <button
               onClick={toggleTheme}
               className="hover:text-[var(--theme-accent)] transition-colors cursor-pointer bg-transparent border-0 p-0 font-mono text-xs text-[var(--theme-accent)]/70"
             >
-              <span className="bg-[var(--theme-accent)] text-black px-1">{themeShortcut}</span> Temas
+              <span className="bg-[var(--theme-accent)] text-black px-1">{themeShortcut}</span> {ui.shortcutTheme}
             </button>
             <button
               onClick={tweetEphemeris}
               className="hover:text-[var(--theme-accent)] transition-colors cursor-pointer bg-transparent border-0 p-0 font-mono text-xs text-[var(--theme-accent)]/70"
             >
-              <span className="bg-[var(--theme-accent)] text-black px-1">{tweetShortcut}</span> Tweet
+              <span className="bg-[var(--theme-accent)] text-black px-1">{tweetShortcut}</span> {ui.shortcutTweet}
             </button>
           </div>
-          <span>Historia del Diseño © 2024</span>
+          <span>{ui.copyright}</span>
         </div>
       </div>
     </div>

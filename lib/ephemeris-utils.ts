@@ -1,3 +1,5 @@
+import type { UIStrings } from "./i18n"
+
 export interface Ephemeris {
   date: string
   year: number
@@ -6,48 +8,10 @@ export interface Ephemeris {
   category: "birth" | "death" | "event" | "founding"
 }
 
-export const designEphemerides: Ephemeris[] = [
-  {
-    date: "01-01",
-    year: 1919,
-    event: "Nace el Bauhaus",
-    description:
-      "Walter Gropius funda la escuela Bauhaus en Weimar, revolucionando el diseño moderno al fusionar arte, artesanía e industria. Su filosofía 'la forma sigue a la función' transformó arquitectura, diseño gráfico y productos, estableciendo principios que aún definen el diseño contemporáneo.",
-    category: "founding",
-  },
-  {
-    date: "01-02",
-    year: 1920,
-    event: "Nace Isaac Asimov",
-    description:
-      "Escritor de ciencia ficción cuyas visiones futuristas sobre robots e inteligencia artificial influyeron profundamente en el diseño de interfaces, UX/UI y estética tecnológica. Sus conceptos sobre interacción humano-máquina siguen inspirando diseñadores digitales hoy.",
-    category: "birth",
-  },
-  {
-    date: "01-03",
-    year: 1929,
-    event: "Nace Sergio Aragonés",
-    description:
-      "Ilustrador y diseñador gráfico mexicano-español, maestro del humor visual en MAD Magazine. Pionero en técnicas de ilustración marginal y narrativa visual que revolucionaron el diseño editorial y la comunicación gráfica humorística en medios impresos.",
-    category: "birth",
-  },
-  {
-    date: "01-04",
-    year: 1958,
-    event: "Nace Matt Frewer",
-    description:
-      "Actor que interpretó a Max Headroom, el primer presentador virtual generado por computadora. Este personaje se convirtió en icono del diseño digital de los 80, influyendo en la estética cyberpunk, motion graphics y el desarrollo de avatares digitales.",
-    category: "birth",
-  },
-  {
-    date: "01-05",
-    year: 1931,
-    event: "Nace Robert Duvall",
-    description:
-      "Actor cuyo trabajo meticuloso en desarrollo de personajes influyó en el diseño de vestuario, caracterización y dirección de arte cinematográfica. Su enfoque detallista inspiró a diseñadores de producción a crear mundos visuales más auténticos y creíbles.",
-    category: "birth",
-  },
-]
+// Re-export English dataset as the default for backward compat with tests
+export { ephemeridesEn as designEphemerides } from "./ephemeris-data/en"
+export { ephemeridesEn } from "./ephemeris-data/en"
+export { ephemeridesEs } from "./ephemeris-data/es"
 
 export function getTodayString(date: Date = new Date()): string {
   return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
@@ -55,7 +19,7 @@ export function getTodayString(date: Date = new Date()): string {
 
 export function getEphemerisForDate(
   dateString: string,
-  db: Ephemeris[] = designEphemerides
+  db: Ephemeris[]
 ): Ephemeris {
   return db.find((e) => e.date === dateString) ?? db[0]
 }
@@ -123,14 +87,16 @@ export function wrapDescriptionToFullWidth(
 export function createDynamicFrame(
   totalColumns: number,
   ephemeris: Ephemeris,
-  date: Date = new Date()
+  date: Date = new Date(),
+  ui: UIStrings,
+  dateLocale: string = "en-US"
 ): string {
   const topInnerWidth = Math.max(0, totalColumns - 2)
   const topBorder = `╭${"─".repeat(topInnerWidth)}╮`
   const bottomBorder = `╰${"─".repeat(topInnerWidth)}╯`
   const indent = "\t"
 
-  const dateFormatted = date.toLocaleDateString("es-ES", {
+  const dateFormatted = date.toLocaleDateString(dateLocale, {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -139,37 +105,36 @@ export function createDynamicFrame(
 
   const contentLines: string[] = []
   contentLines.push("")
-  contentLines.push(...wrapLines(`Fecha: ${dateFormatted}`, indent, totalColumns))
+  contentLines.push(...wrapLines(`${ui.labelDate} ${dateFormatted}`, indent, totalColumns))
   contentLines.push("")
-  contentLines.push(...wrapLines(`Año: ${ephemeris.year}`, indent, totalColumns))
-  contentLines.push(...wrapLines(`Evento: ${ephemeris.event}`, indent, totalColumns))
+  contentLines.push(...wrapLines(`${ui.labelYear} ${ephemeris.year}`, indent, totalColumns))
+  contentLines.push(...wrapLines(`${ui.labelEvent} ${ephemeris.event}`, indent, totalColumns))
   contentLines.push("")
-  contentLines.push(...wrapLines("Descripción:", indent, totalColumns))
+  contentLines.push(...wrapLines(ui.labelDescription, indent, totalColumns))
   contentLines.push(...wrapDescriptionToFullWidth(`   ${ephemeris.description}`, indent, totalColumns))
   contentLines.push("")
-  contentLines.push(...wrapLines(`Categoría: [${ephemeris.category.toUpperCase()}]`, indent, totalColumns))
+  contentLines.push(...wrapLines(`${ui.labelCategory} [${ephemeris.category.toUpperCase()}]`, indent, totalColumns))
   contentLines.push("")
 
-  const titleLine = `${indent}EFEMERIDE DEL DIA`
+  const titleLine = `${indent}${ui.frameTitle}`
   return [topBorder, titleLine, "", ...contentLines, "", bottomBorder].join("\n")
 }
 
-export function buildTweetText(ephemeris: Ephemeris, siteUrl: string): string {
-  const hashtag =
-    ephemeris.category === "founding"
-      ? "#Diseño #Historia"
-      : ephemeris.category === "birth"
-      ? "#Diseño #HistoriaDelDiseño"
-      : "#Diseño #HistoriaDelDiseño"
+export function buildTweetText(
+  ephemeris: Ephemeris,
+  siteUrl: string,
+  ui: UIStrings
+): string {
+  const hashtag = ui.tweetHashtags(ephemeris.category)
 
   // Twitter counts any URL as ~23 chars regardless of length, and most emoji
   // as 2 weighted chars. We budget conservatively:
-  //   Header line:   ~30 chars  ("📅 Efeméride del Diseño — YYYY\n\n")
-  //   Event line:    ~82 chars  ("✦ " + max 80 chars + "\n\n")
-  //   Description:  ~120 chars  (truncated below + "\n\n")
-  //   URL:           ~25 chars  (Twitter counts as 23 + "\n\n")
-  //   Hashtags:      ~28 chars
-  //   Total:         ~285 weighted → safe with Twitter's 280-weighted limit
+  //   Header line:  ~30 chars  (tweetHeader + year + "\n\n")
+  //   Event line:   ~82 chars  ("✦ " + max 80 chars + "\n\n")
+  //   Description: ~120 chars  (truncated + "\n\n")
+  //   URL:          ~25 chars  (Twitter counts as 23 + "\n\n")
+  //   Hashtags:     ~28 chars
+  //   Total:        ~285 weighted → safe within Twitter's 280-weighted limit
   const maxEventLength = 80
   const maxDescriptionLength = 120
 
@@ -183,5 +148,5 @@ export function buildTweetText(ephemeris: Ephemeris, siteUrl: string): string {
       ? ephemeris.description.slice(0, maxDescriptionLength - 1) + "…"
       : ephemeris.description
 
-  return `📅 Efeméride del Diseño — ${ephemeris.year}\n\n✦ ${event}\n\n${description}\n\n${siteUrl}\n\n${hashtag}`
+  return `${ui.tweetHeader} ${ephemeris.year}\n\n✦ ${event}\n\n${description}\n\n${siteUrl}\n\n${hashtag}`
 }

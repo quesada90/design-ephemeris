@@ -10,8 +10,8 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Efemérides del Diseño",
-  description: "Historia del diseño día a día en formato terminal",
+  title: "Design Ephemeris",
+  description: "Design history day by day in terminal format",
   generator: "v0.dev",
 }
 
@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={jetbrainsMono.variable} suppressHydrationWarning>
+    <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <head>
         <style>{`
 html {
