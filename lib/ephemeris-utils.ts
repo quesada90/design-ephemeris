@@ -157,10 +157,10 @@ export function createDynamicFrame(
 export function buildTweetText(ephemeris: Ephemeris, siteUrl: string): string {
   const hashtag =
     ephemeris.category === "founding"
-      ? "#DiseñoGráfico #Historia"
+      ? "#Diseño #Historia"
       : ephemeris.category === "birth"
-      ? "#DiseñoGráfico #Diseño"
-      : "#DiseñoGráfico #HistoriaDelDiseño"
+      ? "#Diseño #Diseño"
+      : "#Diseño #HistoriaDelDiseño"
 
   // Twitter counts any URL as 23 chars; reserve those for siteUrl.
   // Keep non-URL content under 257 chars to stay safely within 280 total.
