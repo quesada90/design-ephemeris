@@ -9,7 +9,6 @@ import {
   createDynamicFrame,
   buildTweetText,
   ephemeridesEn,
-  ephemeridesEs,
   type Ephemeris,
 } from "@/lib/ephemeris-utils"
 import { detectLocale, strings, type Locale } from "@/lib/i18n"
@@ -48,7 +47,6 @@ export function DesignEphemeris() {
   const [themeShortcut, setThemeShortcut] = useState<string>("SHIFT+T")
   const [tweetShortcut, setTweetShortcut] = useState<string>("CTRL+X")
   const [locale, setLocale] = useState<Locale>("en")
-  const [db, setDb] = useState<Ephemeris[]>(ephemeridesEn)
 
   const preRef = useRef<HTMLPreElement | null>(null)
   const measureRef = useRef<HTMLSpanElement | null>(null)
@@ -59,10 +57,13 @@ export function DesignEphemeris() {
   const ui = strings[locale]
   const dateLocale = locale === "es" ? "es-ES" : "en-US"
 
-  // Today's ephemeris from the locale-appropriate dataset
   const today = new Date()
   const todayString = getTodayString(today)
-  const todayEphemeris = getEphemerisForDate(todayString, db)
+
+  // Start with local data instantly (no flash), then replace with DB entry once locale is known
+  const [todayEphemeris, setTodayEphemeris] = useState<Ephemeris>(
+    () => getEphemerisForDate(todayString, ephemeridesEn)
+  )
 
   const fullText = `┌─[design@terminal]─[~/ephemeris]
 └─$ design_ephemeris --date=${todayString}
@@ -82,13 +83,20 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today, ui, dateLocale)}
     return () => clearInterval(timer)
   }, [])
 
-  // Detect browser language on mount
+  // Detect browser language on mount, then fetch today's entry from DB in that locale
   useEffect(() => {
     const loc = detectLocale()
     setLocale(loc)
-    setDb(loc === "es" ? ephemeridesEs : ephemeridesEn)
     document.documentElement.lang = loc
   }, [])
+
+  // Re-fetch from Supabase whenever locale is resolved
+  useEffect(() => {
+    fetch(`/api/ephemeris?date=${todayString}&locale=${locale}`)
+      .then((r) => r.json())
+      .then(({ ephemeris }) => { if (ephemeris) setTodayEphemeris(ephemeris) })
+      .catch(() => {})
+  }, [locale])
 
   // Measure column width for responsive terminal frame
   useEffect(() => {
