@@ -46,7 +46,8 @@ export function DesignEphemeris() {
   const [showCursor, setShowCursor] = useState(true)
   const [columns, setColumns] = useState<number | null>(null)
   const [exitShortcut, setExitShortcut] = useState<string>("CTRL+C")
-  const [currentTheme, setCurrentTheme] = useState<"default" | "blue">("default")
+  type Theme = "default" | "white" | "blue"
+  const [currentTheme, setCurrentTheme] = useState<Theme>("default")
   const [themeShortcut, setThemeShortcut] = useState<string>("SHIFT+T")
   const [tweetShortcut, setTweetShortcut] = useState<string>("CTRL+X")
 
@@ -140,9 +141,11 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
     setTweetShortcut(detectOS() === "mac" ? "CMD+X" : "CTRL+X")
   }, [])
 
-  // Función para cambiar tema
+  // Función para cambiar tema — ciclo: green → white → blue → green
   const toggleTheme = (): void => {
-    setCurrentTheme((prev) => (prev === "default" ? "blue" : "default"))
+    setCurrentTheme((prev) =>
+      prev === "default" ? "white" : prev === "white" ? "blue" : "default"
+    )
   }
 
   // Abrir X/Twitter con la efeméride del día pre-compuesta
@@ -158,14 +161,10 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
 
   // Aplicar tema cuando cambie el estado
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const html = document.documentElement
-      if (currentTheme === "blue") {
-        html.classList.add("blue-theme")
-      } else {
-        html.classList.remove("blue-theme")
-      }
-    }
+    const html = document.documentElement
+    html.classList.remove("white-theme", "blue-theme")
+    if (currentTheme === "white") html.classList.add("white-theme")
+    if (currentTheme === "blue") html.classList.add("blue-theme")
   }, [currentTheme])
 
   // Manejar atajo de teclado para cerrar pestaña
@@ -219,16 +218,16 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
   return (
     <div className="min-h-screen p-6 flex flex-col relative overflow-hidden font-mono bg-[#0E0E0E]">
       {/* Terminal header */}
-      <div className="flex items-center justify-between mb-8 pb-4 border-b border-green-500/30 relative z-10">
+      <div className="flex items-center justify-between mb-8 pb-4 border-b border-[var(--theme-accent-muted)]/30 relative z-10">
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2 mr-4">
             <div className="w-3 h-3 rounded-full bg-red-500 shadow-lg shadow-red-500/50"></div>
             <div className="w-3 h-3 rounded-full bg-yellow-500 shadow-lg shadow-yellow-500/50"></div>
             <div className="w-3 h-3 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
           </div>
-          <div className="text-green-400 text-sm">design@terminal:~/ephemeris</div>
+          <div className="text-[var(--theme-accent)] text-sm">design@terminal:~/ephemeris</div>
         </div>
-        <div className="text-green-400/80 text-sm" suppressHydrationWarning>
+        <div className="text-[var(--theme-accent)]/80 text-sm" suppressHydrationWarning>
           {currentTime ? currentTime.toLocaleTimeString("es-ES") : ""}
         </div>
       </div>
@@ -237,34 +236,37 @@ ${createDynamicFrame(columns ?? 80, todayEphemeris, today)}
       <div className="flex-1 relative z-10">
         <div className="bg-[#0E0E0E] p-6 w-full md:w-[80vw] mx-auto">
           <pre
-            className="whitespace-pre text-sm leading-relaxed tracking-normal text-green-400 drop-shadow-lg"
+            className="whitespace-pre text-sm leading-relaxed tracking-normal text-[var(--theme-accent)] drop-shadow-lg"
             style={{ filter: "blur(0.3px)" }}
             ref={preRef}
           >
             {displayText}
             <span ref={measureRef} className="invisible absolute">─</span>
             {(isTyping || showCursor) && (
-              <span className="bg-green-400 text-black animate-pulse shadow-lg shadow-green-400/50">█</span>
+              <span className="bg-[var(--theme-accent)] text-black animate-pulse shadow-lg shadow-[var(--theme-accent)]/50">█</span>
             )}
           </pre>
         </div>
       </div>
 
       {/* Footer */}
-      <div className="mt-8 pt-4 border-t border-green-500/30 relative z-10">
-        <div className="flex justify-between items-center text-xs text-green-400/70">
+      <div className="mt-8 pt-4 border-t border-[var(--theme-accent-muted)]/30 relative z-10">
+        <div className="flex justify-between items-center text-xs text-[var(--theme-accent)]/70">
           <div className="flex space-x-4">
             <span>
-              <span className="bg-green-400 text-black px-1">{exitShortcut}</span> Salir
-            </span>
-            <span>
-              <span className="bg-green-400 text-black px-1">{themeShortcut}</span> Temas
+              <span className="bg-[var(--theme-accent)] text-black px-1">{exitShortcut}</span> Salir
             </span>
             <button
-              onClick={tweetEphemeris}
-              className="hover:text-green-400 transition-colors cursor-pointer bg-transparent border-0 p-0 font-mono text-xs text-green-400/70 hover:text-green-400"
+              onClick={toggleTheme}
+              className="hover:text-[var(--theme-accent)] transition-colors cursor-pointer bg-transparent border-0 p-0 font-mono text-xs text-[var(--theme-accent)]/70"
             >
-              <span className="bg-green-400 text-black px-1">{tweetShortcut}</span> Tweet
+              <span className="bg-[var(--theme-accent)] text-black px-1">{themeShortcut}</span> Temas
+            </button>
+            <button
+              onClick={tweetEphemeris}
+              className="hover:text-[var(--theme-accent)] transition-colors cursor-pointer bg-transparent border-0 p-0 font-mono text-xs text-[var(--theme-accent)]/70"
+            >
+              <span className="bg-[var(--theme-accent)] text-black px-1">{tweetShortcut}</span> Tweet
             </button>
           </div>
           <span>Historia del Diseño © 2024</span>
