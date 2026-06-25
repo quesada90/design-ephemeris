@@ -1,7 +1,7 @@
 export const runtime = "nodejs"
 
 import { NextRequest, NextResponse } from "next/server"
-import { supabaseAdmin } from "@/lib/supabase"
+import { createClient } from "@supabase/supabase-js"
 import { ephemeridesEn, ephemeridesEs, type Ephemeris } from "@/lib/ephemeris-utils"
 
 function rowToEphemeris(row: Record<string, unknown>, locale: string): Ephemeris {
@@ -22,24 +22,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid date" }, { status: 400 })
   }
 
-  try {
-    const { data, error } = await supabaseAdmin
-      .from("ephemeris")
-      .select("*")
-      .eq("date", date)
-      .single()
+  // Create client inside the handler so it only runs at request time, not build time
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_ANON_KEY ?? process.env.SUPABASE_SERVICE_KEY
 
-    if (!error && data) {
-      return NextResponse.json({
-        ephemeris: rowToEphemeris(data, locale),
-        source: "db",
-      })
+  if (supabaseUrl && supabaseKey) {
+    try {
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      const { data, error } = await supabase
+        .from("ephemeris")
+        .select("*")
+        .eq("date", date)
+        .single()
+
+      if (!error && data) {
+        return NextResponse.json({
+          ephemeris: rowToEphemeris(data, locale),
+          source: "db",
+        })
+      }
+    } catch {
+      // fall through to local fallback
     }
-  } catch {
-    // fall through to local fallback
   }
 
-  // Local hardcoded fallback (emergency — should not happen after seeding)
+  // Local hardcoded fallback
   const localDb = locale === "es" ? ephemeridesEs : ephemeridesEn
   const found = localDb.find((e) => e.date === date) ?? localDb[0]
   return NextResponse.json({ ephemeris: found, source: "local" })
